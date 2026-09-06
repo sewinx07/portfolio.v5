@@ -109,7 +109,7 @@ async function main() {
   // --- technologies
   const techDefs = [
     ["React", "Development"], ["Next.js", "Development"], ["TypeScript", "Development"],
-    ["Prisma", "Development"], ["SQLite", "Development"], ["Node.js", "Development"],
+    ["Prisma", "Development"], ["PostgreSQL", "Development"], ["Node.js", "Development"],
     ["Motion", "Development"], ["CSS3", "Development"], ["HTML5", "Development"],
     ["Sharp", "Tools"], ["Figma", "Design"], ["Photoshop", "Design"],
     ["Illustrator", "Design"], ["After Effects", "Motion"], ["Three.js", "Development"],
@@ -331,7 +331,7 @@ async function main() {
       type: "paragraph",
       title: "",
       content:
-        "Next.js 15 App Router serves the public site as dynamic server-rendered pages backed by Prisma + SQLite. Motion drives the cinematic transitions and scroll-linked project depth. Unauthenticated visitors get SEO-ready HTML; the owner gets an authenticated CMS with drafts, revisions and explicit publishing. Media is processed with Sharp and optimized to WebP.",
+        "Next.js 15 App Router serves the public site as dynamic server-rendered pages backed by Prisma + PostgreSQL on Neon. Motion drives the cinematic transitions and scroll-linked project depth. Unauthenticated visitors get SEO-ready HTML; the owner gets an authenticated CMS with drafts, revisions and explicit publishing. Media is processed with Sharp and optimized to WebP.",
       order: 7,
     },
     {
@@ -339,7 +339,7 @@ async function main() {
       title: "STACK",
       content: "",
       data: {
-        items: ["Next.js", "TypeScript", "Prisma", "SQLite", "Motion", "Sharp"],
+        items: ["Next.js", "TypeScript", "Prisma", "PostgreSQL", "Motion", "Sharp"],
       },
       order: 8,
     },
@@ -402,7 +402,7 @@ async function main() {
       heroMediaId: p1.id,
       publishedAt: new Date(),
       technologies: {
-        create: ["Next.js", "TypeScript", "Prisma", "SQLite", "Motion", "Sharp"].map((t, i) => ({
+        create: ["Next.js", "TypeScript", "Prisma", "PostgreSQL", "Motion", "Sharp"].map((t, i) => ({
           technologyId: techs[t].id,
           order: i,
         })),
