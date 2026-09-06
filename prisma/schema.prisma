@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  SVG
+  FILE
+}
+
+enum MessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(ADMIN)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Project {
+  id              String              @id @default(cuid())
+  title           String
+  slug            String              @unique
+  tagline         String              @default("")
+  category        String              @default("Web Experience")
+  year            String              @default("")
+  client          String              @default("")
+  role            String              @default("")
+  shortDescription String             @default("")
+  description     String              @default("")
+  accent          String              @default("#111111")
+  status          ProjectStatus       @default(DRAFT)
+  featured        Boolean             @default(false)
+  order           Int                 @default(0)
+  liveUrl         String              @default("")
+  githubUrl       String              @default("")
+  metaTitle       String              @default("")
+  metaDescription String              @default("")
+  thumbnailId     String?
+  heroMediaId     String?
+  thumbnail       MediaItem?          @relation("UsedByThumb", fields: [thumbnailId], references: [id], onDelete: SetNull)
+  heroMedia       MediaItem?          @relation("UsedByHero", fields: [heroMediaId], references: [id], onDelete: SetNull)
+  technologies    ProjectTechnology[]
+  gallery         ProjectMedia[]
+  sections        ProjectSection[]
+  revisions       Revision[]
+  publishedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, order])
+  @@index([featured])
+}
+
+model ProjectTechnology {
+  id          String     @id @default(cuid())
+  projectId   String
+  technologyId String
+  order       Int        @default(0)
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  technology  Technology @relation(fields: [technologyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, technologyId])
+  @@index([technologyId])
+}
+
+model Technology {
+  id       String              @id @default(cuid())
+  name     String              @unique
+  slug     String              @unique
+  category String              @default("Development")
+  projects ProjectTechnology[]
+}
+
+model ProjectMedia {
+  id        String    @id @default(cuid())
+  projectId String
+  mediaItemId String
+  order     Int       @default(0)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mediaItem MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, mediaItemId])
+  @@index([mediaItemId])
+}
+
+model ProjectSection {
+  id        String  @id @default(cuid())
+  projectId String
+  type      String  // heading | paragraph | image | gallery | video | quote | statistics | technologies | twoColumn | embed | fullMedia
+  title     String  @default("")
+  content   String  @default("")
+  data      String  @default("{}") // JSON payload (mediaIds, author, items, url, columns...)
+  order     Int     @default(0)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, order])
+}
+
+model MediaItem {
+  id           String       @id @default(cuid())
+  filename     String
+  url          String
+  kind         MediaKind
+  mimeType     String       @default("")
+  size         Int          @default(0)
+  width        Int?
+  height       Int?
+  alt          String       @default("")
+  caption      String       @default("")
+  uploadedAt   DateTime     @default(now())
+  gallery      ProjectMedia[]
+  usedByThumb  Project[]    @relation("UsedByThumb")
+  usedByHero   Project[]    @relation("UsedByHero")
+
+  @@index([kind])
+}
+
+model Revision {
+  id        String   @id @default(cuid())
+  projectId String
+  version   Int
+  note      String   @default("")
+  snapshot  String   // JSON snapshot of the project
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+}
+
+model PageContent {
+  id           String   @id @default(cuid())
+  key          String   @unique // homepage | about | contact
+  title        String   @default("")
+  content      String   // JSON blob of editable fields
+  logoId       String?
+  socialImageId String?
+  updatedAt    DateTime @updatedAt
+}
+
+model SiteSettings {
+  id                String       @id @default("site")
+  title             String       @default("Taha Gmir")
+  tagline           String       @default("Creative Developer & Digital Experience Builder")
+  description       String       @default("")
+  contactEmail      String       @default("")
+  footerText        String       @default("")
+  analyticsEnabled  Boolean      @default(false)
+  maintenance       Boolean      @default(false)
+  faviconId         String?
+  logoId            String?
+  socialImageId     String?
+  updatedAt         DateTime     @updatedAt
+}
+
+model SocialLink {
+  id     String  @id @default(cuid())
+  label  String
+  url    String
+  order  Int     @default(0)
+  visible Boolean @default(true)
+}
+
+model NavItem {
+  id      String  @id @default(cuid())
+  label   String
+  href    String
+  order   Int     @default(0)
+  visible Boolean @default(true)
+}
+
+model ContactSubmission {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  subject   String        @default("")
+  message   String
+  status    MessageStatus @default(NEW)
+  createdAt DateTime      @default(now())
+
+  @@index([status])
+}
+
+model AISettings {
+  id               String   @id @default("ai")
+  enabled          Boolean  @default(false)
+  name             String   @default("Taha AI")
+  welcomeMessage   String   @default("")
+  suggestedQuestions String @default("[]")
+  useProjects      Boolean  @default(true)
+  useSkills        Boolean  @default(true)
+  useBio           Boolean  @default(true)
+  useExperience    Boolean  @default(true)
+  useServices      Boolean  @default(true)
+  customPrompt     String   @default("")
+  updatedAt        DateTime @updatedAt
+}
+
+model AIKnowledge {
+  id        String  @id @default(cuid())
+  type      String  @default("FAQ") // FAQ | CUSTOM
+  question  String
+  answer    String
+  enabled   Boolean @default(true)
+  order     Int     @default(0)
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  kind        String   // PAGE_VIEW | PROJECT_VIEW
+  path        String
+  projectSlug String   @default("")
+  referrer    String   @default("")
+  device      String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([projectSlug])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+}
