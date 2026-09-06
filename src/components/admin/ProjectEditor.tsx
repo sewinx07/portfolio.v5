@@ -145,8 +145,7 @@ export function ProjectEditor({
     notify(res.message, res.ok);
     setBusy(false);
     if (res.ok && res.data?.id) {
-      router.replace(`/admin/projects/${res.data.id}`);
-      router.refresh();
+      await router.replace(`/admin/projects/${res.data.id}`);
     } else {
       router.refresh();
     }

@@ -19,7 +19,7 @@ motion that means something.
 | Framework | Next.js 15 (App Router) · React 19 · TypeScript |
 | Styling | Hand-written CSS in `src/app/globals.css` |
 | Animation | `motion` (Framer Motion) |
-| Database | Prisma 6 + SQLite (single file — perfect for one VPS) |
+| Database | Prisma 6 + PostgreSQL (Neon — serverless + VPS friendly) |
 | Auth | Signed JWT session cookie (`jose`, HS256) with DB-verified guards |
 | Images | `sharp` (resize → WebP ≤2400px, SVGs sanitized) + self-hosted `next/font` |
 | QA | Playwright harness (`qa/qa.spec.js`) |
@@ -73,10 +73,48 @@ npm run lint       # eslint
 
 ---
 
-## Deploying (single VPS)
+## Deploying
 
-SQLite + `next start` is the intended model — a small VPS (or a Docker container).
-Serverless platforms (Vercel, etc.) won't persist SQLite between instances.
+The app reads Postgres via the **pooled** `DATABASE_URL` (serverless-safe) and runs
+Prisma migrations over the **direct** `DIRECT_URL`. Both come from a Neon project.
+
+### Vercel (recommended)
+
+```text
+Environment Variables (Settings → Environment Variables → Production):
+  DATABASE_URL        = <Neon "Pooled connection" string>
+  DIRECT_URL          = <Neon "Direct connection" string>
+  AUTH_SECRET         = <long random string>
+  NEXT_PUBLIC_SITE_URL= https://your-domain.com
+  ADMIN_EMAIL         = admin@tahagmir.com        (seed only)
+  ADMIN_PASSWORD      = <your admin password>     (seed only)
+  AI_BASE_URL / AI_API_KEY / AI_MODEL = optional OpenAI-compatible provider
+```
+
+Apply the schema + seed once from your machine (the migration runs over
+`DIRECT_URL`, so it works from anywhere):
+
+```bash
+npm ci
+cp .env.example .env      # fill in the two connections from Neon
+npm install
+npm run db:setup          # prisma db push + seed (Neon)
+npm run build
+```
+
+Then push your repo and Deploy on Vercel. That's it — each deploy is a fresh
+serverless instance that already has its data in Neon.
+
+> **Media note** — uploaded files are written to the server disk
+> (`public/uploads`), which is **ephemeral on Vercel**: uploads survive on a
+> dedicated VM/VPS but may be lost on a serverless redeploy. For permanent media
+> on Vercel, keep media on the local-only path (direct-upload to object storage
+> is a planned upgrade).
+
+### Single VPS
+
+`next start` behind a reverse proxy (Caddy or nginx) keeps everything on one box,
+including persistent uploads:
 
 ```bash
 npm ci
@@ -84,8 +122,6 @@ cp .env.example .env          # set AUTH_SECRET, ADMIN_*, NEXT_PUBLIC_SITE_URL
 npm run build
 npm run start                 # listens on :3000
 ```
-
-Behind a reverse proxy (Caddy or nginx):
 
 ```text
 site.com            -> 127.0.0.1:3000   (HTTPS)
@@ -97,13 +133,15 @@ the full security header set. Point `NEXT_PUBLIC_SITE_URL` at your public
 origin — it drives the sitemap, canonical URLs, and Open Graph metadata.
 
 > Run as a dedicated non-root user. Keep `AUTH_SECRET` at ≥32 random bytes.
-> Back up `prisma/dev.db` (and `public/uploads/`) regularly.
+> Back up the Neon database (point-in-time restore) and `public/uploads/`
+> regularly.
 
 ### Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | `file:./dev.db` (SQLite relative to the `prisma` dir) |
+| `DATABASE_URL` | Pooled Postgres connection (runtime — serverless-safe) |
+| `DIRECT_URL` | Direct Postgres connection (Prisma `db push` / migrations) |
 | `AUTH_SECRET` | Session signing secret — ≥24 chars, keep secret |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Admin bootstrap (used only by the seed) |
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Optional OpenAI-compatible provider; leave blank for the offline assistant |
@@ -122,7 +160,7 @@ origin — it drives the sitemap, canonical URLs, and Open Graph metadata.
 ## QA
 
 The suite is self-contained: it snapshots the DB, provisions published projects,
-runs ~55 browser checks, and restores the baseline in a `finally` block.
+runs 66 browser checks, and restores the baseline in a `finally` block.
 
 ```bash
 npm run build

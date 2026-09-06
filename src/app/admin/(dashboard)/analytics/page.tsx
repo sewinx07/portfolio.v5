@@ -12,11 +12,11 @@ export default async function AdminAnalyticsPage() {
   const [total, projects, viewsByDay, topProjects, referrers, devices, recent] = await Promise.all([
     db.analyticsEvent.count(),
     db.analyticsEvent.count({ where: { kind: "PROJECT_VIEW" } }),
-    db.$queryRawUnsafe<string>(`
-      SELECT date(createdAt) as day, count(*) as c
-      FROM AnalyticsEvent
+    db.$queryRawUnsafe(`
+      SELECT date("createdAt") as day, count(*) as c
+      FROM "AnalyticsEvent"
       GROUP BY day ORDER BY day DESC LIMIT 14
-    `),
+    `) as Promise<Array<{ day: string | Date; c: number | bigint }>>,
     db.analyticsEvent.groupBy({
       by: ["projectSlug"],
       where: { projectSlug: { not: "" } },
@@ -38,8 +38,8 @@ export default async function AdminAnalyticsPage() {
     db.analyticsEvent.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
   ]);
 
-  const dayRows = (viewsByDay as unknown as Array<{ day: string; c: number }>).map((r) => ({
-    day: r.day,
+  const dayRows = viewsByDay.map((r) => ({
+    day: typeof r.day === "string" ? r.day : r.day.toISOString().slice(0, 10),
     count: Number(r.c),
   }));
 
