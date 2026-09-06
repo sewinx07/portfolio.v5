@@ -10,6 +10,8 @@ import { MaintenanceScreen } from "@/components/public/MaintenanceScreen";
 import { db } from "@/lib/db";
 import { DEFAULT_AI } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const [site, nav, socials, aiSettings] = await Promise.all([
     getSite(),

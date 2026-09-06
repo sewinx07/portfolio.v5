@@ -28,7 +28,12 @@ const spaceMono = Space_Mono({
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {
-  let settings = await db.siteSettings.findUnique({ where: { id: "site" } });
+  let settings;
+  try {
+    settings = await db.siteSettings.findUnique({ where: { id: "site" } });
+  } catch {
+    settings = null; // DB unreachable (e.g. during static pre-render before env is available) — fall back to defaults
+  }
   if (!settings) {
     settings = {
       id: "site",
