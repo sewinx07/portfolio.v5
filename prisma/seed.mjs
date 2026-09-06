@@ -1,8 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Load .env so ADMIN_EMAIL / ADMIN_PASSWORD / DATABASE_URL are deterministic
@@ -14,7 +12,6 @@ try {
 } catch {}
 
 const prisma = new PrismaClient();
-const uploadDir = path.join(process.cwd(), "public", "uploads", "seed");
 
 const log = (msg) => console.log(`[seed] ${msg}`);
 
@@ -46,18 +43,18 @@ function poster(name, title, index, accent = "#111111", bg = "#F4F2EE") {
 }
 
 async function saveMedia(filename, svg, alt) {
-  const full = path.join(uploadDir, filename);
-  await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, svg);
+  const id = filename.replace(/\.svg$/, "-media");
   const size = Buffer.byteLength(svg);
-  const url = `/uploads/seed/${filename}`;
+  const url = `/media/${id}`;
+  const data = Buffer.from(svg, "utf8");
   return prisma.mediaItem.upsert({
-    where: { id: filename.replace(/\.svg$/, "-media") },
-    update: { url, size, alt },
+    where: { id },
+    update: { url, size, data, alt },
     create: {
-      id: filename.replace(/\.svg$/, "-media"),
+      id,
       filename,
       url,
+      data,
       kind: "SVG",
       mimeType: "image/svg+xml",
       size,

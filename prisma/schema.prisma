@@ -127,6 +127,7 @@ model MediaItem {
   id           String       @id @default(cuid())
   filename     String
   url          String
+  data         Bytes?       // processed bytes for /media/<id> serving (null for legacy static files)
   kind         MediaKind
   mimeType     String       @default("")
   size         Int          @default(0)

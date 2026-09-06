@@ -31,9 +31,8 @@ motion that means something.
   Falls back to a flat list for reduced-motion users or a single project.
 - **CMS without compromise** — every public page is editable from `/admin` and
   updates go live instantly (routes are `force-dynamic`, so no rebuilds).
-- **Media pipeline** — drag-and-drop upload, automatic processing, runtime
-  serving of new files through a guarded `/uploads/*` route (so uploads work
-  even on production servers without a rebuild).
+- **Media pipeline** — drag-and-drop upload, automatic processing, persistent
+  storage in Postgres (`MediaItem.data`) and runtime serving via `/media/<id>`.
 - **Security** — JWT sessions, rate limiting on login/contact/AI/upload/analytics,
   DB re-check of every admin mutation, SVG sanitization, security headers + CSP,
   locked-down SVG serving, path-traversal guards.
@@ -105,16 +104,15 @@ npm run build
 Then push your repo and Deploy on Vercel. That's it — each deploy is a fresh
 serverless instance that already has its data in Neon.
 
-> **Media note** — uploaded files are written to the server disk
-> (`public/uploads`), which is **ephemeral on Vercel**: uploads survive on a
-> dedicated VM/VPS but may be lost on a serverless redeploy. For permanent media
-> on Vercel, keep media on the local-only path (direct-upload to object storage
-> is a planned upgrade).
+> **Media note** — media bytes are stored in Postgres (`MediaItem.data`) and
+> served via the `/media/<id>` route, so uploads persist across deploys with no
+> external storage service. Seed poster SVGs are also kept in the database (run
+> `node scripts/backfill-media.mjs` after a fresh schema push).
 
 ### Single VPS
 
-`next start` behind a reverse proxy (Caddy or nginx) keeps everything on one box,
-including persistent uploads:
+`next start` behind a reverse proxy (Caddy or nginx) keeps everything on one box —
+media bytes live in the database, so disk-based uploads are optional:
 
 ```bash
 npm ci
@@ -133,7 +131,8 @@ the full security header set. Point `NEXT_PUBLIC_SITE_URL` at your public
 origin — it drives the sitemap, canonical URLs, and Open Graph metadata.
 
 > Run as a dedicated non-root user. Keep `AUTH_SECRET` at ≥32 random bytes.
-> Back up the Neon database (point-in-time restore) and `public/uploads/`
+> Back up the Neon database (point-in-time restore is enough — media bytes live
+> in the database too).
 > regularly.
 
 ### Environment variables
@@ -173,7 +172,7 @@ node qa/qa.spec.js        # expects the server on :3100 (see BASE in the spec)
 src/app/(site)/        # public pages (home, work, case study, about, contact)
 src/app/admin/         # authenticated CMS
 src/app/api/           # media upload, AI, first-party analytics
-src/app/uploads/[...]  # runtime serving of uploaded media
+src/app/media/[id]/      # serve uploaded media bytes from the database
 src/components/        # public, work, admin, contact component groups
 src/lib/               # db, session, upload, ai-context, validation, rate-limit
 src/actions/           # server actions (all admin-guarded)

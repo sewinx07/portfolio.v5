@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import crypto from "node:crypto";
 import sharp from "sharp";
 import { db } from "@/lib/db";
@@ -28,13 +26,18 @@ export type UploadResult = {
   size: number;
   width: number | null;
   height: number | null;
+  buffer: Buffer;
 };
 
-const uploadRoot = path.join(process.cwd(), "public", "uploads");
-
 function sanitizeFilename(name: string): string {
-  const base = path.basename(name).replace(/[^\w.\- ]/g, "").trim().replace(/\s+/g, "-");
+  const base = pathBasename(name).replace(/[^\w.\- ]/g, "").trim().replace(/\s+/g, "-");
   return base || "file";
+}
+
+// Small shim so the filename never resolves through a filesystem path.
+function pathBasename(name: string): string {
+  const i = Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"));
+  return i >= 0 ? name.slice(i + 1) : name;
 }
 
 export async function processUpload(file: File): Promise<UploadResult> {
@@ -64,23 +67,19 @@ export async function processUpload(file: File): Promise<UploadResult> {
     }
   }
 
-  const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const dir = path.join(uploadRoot, month);
-  await fs.mkdir(dir, { recursive: true });
-
-  const ext = isSvg ? "svg" : isVideo ? (mime === "video/webm" ? "webm" : "mp4") : "webp";
   const random = crypto.randomBytes(6).toString("hex");
-  const filename = `${random}-${path.basename(originalName, path.extname(originalName)).toLowerCase().slice(0, 40)}.${ext}`;
-  const dest = path.join(dir, filename);
-  const url = `/uploads/${month}/${filename}`;
+  const nameBase = pathBasename(originalName);
+  const base = nameBase.slice(0, nameBase.lastIndexOf(".")) || nameBase;
+  const ext = isSvg ? "svg" : isVideo ? (mime === "video/webm" ? "webm" : "mp4") : "webp";
+  const filename = `${random}-${base.toLowerCase().slice(0, 40)}.${ext}`;
 
   let width: number | null = null;
   let height: number | null = null;
+  let outBuf: Buffer = buf;
   let outSize = buf.length;
 
   if (isSvg || isVideo) {
-    await fs.writeFile(dest, buf);
+    outBuf = buf;
   } else {
     let pipeline = sharp(buf, { animated: mime === "image/gif" });
     const meta = await pipeline.metadata();
@@ -95,47 +94,58 @@ export async function processUpload(file: File): Promise<UploadResult> {
       const resized = await pipeline
         .webp({ quality: IMAGE_QUALITY, effort: 4 })
         .toBuffer();
-      await fs.writeFile(dest, resized);
+      outBuf = resized;
       outSize = resized.length;
       const meta2 = await sharp(resized).metadata();
       width = meta2.width ?? width;
       height = meta2.height ?? height;
-    } else {
-      // GIF: keep original (animate for the rare case)
-      await fs.writeFile(dest, buf);
     }
   }
 
   return {
     filename,
-    url,
+    url: "", // filled by createMediaFromUpload once the row exists
     kind: isSvg ? "SVG" : isVideo ? "VIDEO" : "IMAGE",
     mimeType: mime,
     size: outSize,
     width,
     height,
+    buffer: outBuf,
   };
 }
 
 export async function deleteUploadFile(url: string) {
-  const safe = path.normalize(url).replace(/^(\.\.[/\\])+/, "");
-  const full = path.join(process.cwd(), "public", safe);
-  if (full.startsWith(uploadRoot)) {
-    await fs.unlink(full).catch(() => {});
-  }
+  // Media bytes live in the database (MediaItem.data); nothing to remove on disk.
+  void url;
 }
 
 export async function createMediaFromUpload(file: File) {
   const data = await processUpload(file);
-  return db.mediaItem.create({
+  const row = await db.mediaItem.create({
     data: {
       filename: data.filename,
-      url: data.url,
+      url: "",
+      data: data.buffer as unknown as Uint8Array<ArrayBuffer>,
       kind: data.kind,
       mimeType: data.mimeType,
       size: data.size,
       width: data.width,
       height: data.height,
     },
+    select: {
+      id: true,
+      filename: true,
+      kind: true,
+      mimeType: true,
+      size: true,
+      width: true,
+      height: true,
+      alt: true,
+      caption: true,
+      uploadedAt: true,
+    },
   });
+  const url = `/media/${row.id}`;
+  await db.mediaItem.update({ where: { id: row.id }, data: { url }, select: { id: true } });
+  return { ...row, url };
 }
